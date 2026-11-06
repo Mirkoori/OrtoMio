@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "it.mirkoori.ortomio"
+    namespace = "com.devori.ortomio"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "it.mirkoori.ortomio"
+        applicationId "com.devori.ortomio"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
