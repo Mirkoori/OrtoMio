@@ -1,4 +1,9 @@
+import "@fontsource-variable/bricolage-grotesque";
+import "@fontsource-variable/hanken-grotesk";
+import "@fontsource/dm-mono/400.css";
+import "@fontsource/dm-mono/500.css";
 import "./style.css";
+import { Preferences } from "@capacitor/preferences";
 import { art } from "./art.js";
 import { MESI, MES3, MES3L, LET, V, BY, CATS } from "./data.js";
 import { mapApi, TYPES, TLAB } from "./map.js";
@@ -18,11 +23,20 @@ var IC={
 /* ---------- state ---------- */
 var state={month:NOW_M,seg:"stagione",cat:"Tutte",q:"",open:null};
 var DAY=864e5, garden=[], lastFocus=null, toastT=null;
-function loadGarden(){
-  try{var r=localStorage.getItem("ortomio-orto");if(r){var a=JSON.parse(r);if(Array.isArray(a)){garden=a.filter(function(g){return g&&BY[g.id]});return}}}catch(e){}
-  garden=[{id:"aglio",d:Date.now()-14*DAY,ex:true},{id:"fave",d:Date.now()-9*DAY,ex:true},{id:"spinaci",d:Date.now()-21*DAY,ex:true}];
+var STORE_KEY="ortomio-orto";
+function parseGarden(raw){try{var a=JSON.parse(raw);if(Array.isArray(a))return a.filter(function(g){return g&&BY[g.id]})}catch(e){}return null}
+async function loadGarden(){
+  var raw=null;
+  try{raw=(await Preferences.get({key:STORE_KEY})).value}catch(e){}
+  if(!raw){try{raw=localStorage.getItem(STORE_KEY)}catch(e){}}
+  var a=raw?parseGarden(raw):null;
+  garden=a||[{id:"aglio",d:Date.now()-14*DAY,ex:true},{id:"fave",d:Date.now()-9*DAY,ex:true},{id:"spinaci",d:Date.now()-21*DAY,ex:true}];
 }
-function saveGarden(){try{localStorage.setItem("ortomio-orto",JSON.stringify(garden))}catch(e){}}
+function saveGarden(){
+  var s=JSON.stringify(garden);
+  try{Preferences.set({key:STORE_KEY,value:s}).catch(function(){})}catch(e){}
+  try{localStorage.setItem(STORE_KEY,s)}catch(e){}
+}
 
 /* ---------- helpers ---------- */
 function rangeText(arr){
@@ -229,5 +243,4 @@ document.addEventListener("keydown",function(e){
 $("#q").addEventListener("input",function(e){state.q=e.target.value;renderGrid()});
 window.addEventListener("hashchange",route);
 
-loadGarden();
-route();
+loadGarden().then(route);

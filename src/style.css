@@ -7,8 +7,8 @@
   --accent:#FF4D2E; --on-color:#12200F; --paper:#FFFDF2;
   --c-sow:#FFC83D; --c-plant:#5FD08A; --c-harvest:#FF7A5C; --ok:#CFF3D9; --no:#FFD3CC; --water:#3BA7FF; --sun:#FFC83D;
   --t-farm:#2E9E5B; --t-contadino:#FF8A1F; --t-frutt:#E6428E;
-  --f-display:"Bricolage Grotesque","Arial Narrow",system-ui,sans-serif;
-  --f-body:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-display:"Bricolage Grotesque Variable","Bricolage Grotesque","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Hanken Grotesk Variable","Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"DM Mono",ui-monospace,"SF Mono",Menlo,monospace;
 }
 @media (prefers-color-scheme: dark){

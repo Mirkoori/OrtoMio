@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Orto Mio</string>
+    <string name="title_activity_main">Orto Mio</string>
+    <string name="package_name">it.mirkoori.ortomio</string>
+    <string name="custom_url_scheme">it.mirkoori.ortomio</string>
+</resources>

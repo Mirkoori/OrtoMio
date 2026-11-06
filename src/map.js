@@ -1,5 +1,7 @@
 // Mappa reale: Leaflet + tile di OpenStreetMap, attività cercate con l'API Overpass (dati OSM).
 import L from "leaflet";
+import { Capacitor } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
 import "leaflet/dist/leaflet.css";
 
 export const TYPES = [
@@ -157,6 +159,14 @@ function setOrigin(lat, lng) {
   else userMarker = L.circleMarker([lat, lng], { radius: 8, color: "#ffffff", weight: 3, fillColor: "#2D7FF9", fillOpacity: 1 }).addTo(map);
 }
 
+async function getPosition() {
+  if (Capacitor.isNativePlatform()) {
+    const perm = await Geolocation.requestPermissions({ permissions: ["location"] });
+    if (perm.location !== "granted" && perm.coarseLocation !== "granted") throw new Error("permesso negato");
+  }
+  return Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+}
+
 function locate(silent) {
   if (!map) return;
   const fallback = (msg) => {
@@ -164,22 +174,17 @@ function locate(silent) {
     map.setView([FALLBACK.lat, FALLBACK.lng], FALLBACK.zoom);
     search();
   };
-  if (!("geolocation" in navigator)) { fallback("Posizione non disponibile: mostro Modena. Sposta la mappa dove vuoi."); return; }
   status = "Cerco la tua posizione…"; emit();
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      setOrigin(pos.coords.latitude, pos.coords.longitude);
-      map.setView([pos.coords.latitude, pos.coords.longitude], 13);
-      search();
-    },
-    () => {
-      if (origin) { map.setView([origin.lat, origin.lng], 13); search(); return; }
-      fallback(silent
-        ? "Posizione non concessa: mostro Modena. Tocca «Vicino a me» per riprovare."
-        : "Non riesco a leggere la posizione. Controlla i permessi del browser e riprova.");
-    },
-    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
-  );
+  getPosition().then((pos) => {
+    setOrigin(pos.coords.latitude, pos.coords.longitude);
+    map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+    search();
+  }).catch(() => {
+    if (origin) { map.setView([origin.lat, origin.lng], 13); search(); return; }
+    fallback(silent
+      ? "Posizione non concessa: mostro Modena. Tocca «Vicino a me» per riprovare."
+      : "Non riesco a leggere la posizione. Controlla i permessi dell'app e riprova.");
+  });
 }
 
 function select(id, fly) {

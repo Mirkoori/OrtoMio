@@ -37,11 +37,26 @@ src/style.css     grafica (tema chiaro e scuro automatici)
 - I tile pubblici di OpenStreetMap vanno bene per sviluppo e piccoli numeri. Con molti utenti serve un fornitore di tile (MapTiler, Stadia, Thunderforest o tile propri) e un'istanza Overpass propria o a pagamento. Vedi la [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
 - Attribuzione obbligatoria: © contributori OpenStreetMap (ODbL). È già mostrata nella mappa e nella pagina.
 
+## App Android
+
+L'app è impacchettata con [Capacitor](https://capacitorjs.com). Il progetto Android è nella cartella `android/`.
+
+- **APK di prova**: a ogni modifica su `main` GitHub compila l'app e la pubblica nella pagina **Releases**, voce «Ultima build». Dal telefono scarica `OrtoMio.apk` e aprilo (Android chiede il permesso di installare da Chrome).
+- **Aggiornamenti senza perdere i dati**: gli APK di prova sono firmati con una chiave fissa (`android/app/debug.keystore`, password pubblica). Va bene per le prove, **non** per lo store.
+- **Identificativo dell'app**: `it.mirkoori.ortomio` (in `capacitor.config.json` e `android/app/build.gradle`). Cambialo prima della prima pubblicazione: dopo non si può più cambiare.
+- **Su computer**: `npm run build`, `npx cap sync android`, `npx cap open android` (serve Android Studio).
+- **Icone**: sorgenti in `assets/`. Dopo averle modificate: `npx capacitor-assets generate --android`.
+- **Play Store**: serve un account sviluppatore Google (25 USD una tantum), una chiave di caricamento privata (da conservare nei Secrets di GitHub, mai nel repository), la build `bundleRelease` (file AAB), l'informativa sulla privacy e la scheda «Sicurezza dei dati» (l'app usa la posizione).
+
+## Dati dell'utente
+
+L'orto di ogni utente è salvato **sul dispositivo** (Capacitor Preferences, con copia in localStorage nella versione web). Nessun server e nessun costo. I dati restano quando si chiude l'app, ma si perdono se si disinstalla l'app o si cancellano i dati. Il backup automatico di Android è attivo (`allowBackup`), quindi con il backup di Google attivo un telefono nuovo può ripristinarli. Per sincronizzare più dispositivi servirebbe un account con un servizio online (per esempio Supabase).
+
 ## Da fare
 
-- Pacchetto Android con Capacitor per il Play Store.
+- Pubblicazione sul Play Store (vedi «App Android»).
 - "Aperto ora" calcolato dagli orari OpenStreetMap.
-- Font in locale, utilizzo offline e icone dell'app.
+- Utilizzo offline dei file dell'app (i font sono già inclusi).
 - Cache delle ultime ricerche sulla mappa.
 - Più verdure e varietà, filtri per zona climatica.
 - Pubblicità (AdMob) e titolo dello store con parole chiave, per esempio «Orto Mio: Verdure di Stagione».
