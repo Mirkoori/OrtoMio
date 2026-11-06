@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Orto Mio</string>
     <string name="title_activity_main">Orto Mio</string>
-    <string name="package_name">com.devori.ortomio</string>
-    <string name="custom_url_scheme">com.devori.ortomio</string>
+    <string name="package_name">it.devori.ortomio</string>
+    <string name="custom_url_scheme">it.devori.ortomio</string>
 </resources>

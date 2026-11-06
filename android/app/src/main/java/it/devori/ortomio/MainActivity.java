@@ -1,4 +1,4 @@
-package com.devori.ortomio;
+package it.devori.ortomio;
 
 import com.getcapacitor.BridgeActivity;
 
