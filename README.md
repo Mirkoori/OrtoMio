@@ -48,6 +48,10 @@ L'app è impacchettata con [Capacitor](https://capacitorjs.com). Il progetto And
 - **Icone**: sorgenti in `assets/`. Dopo averle modificate: `npx capacitor-assets generate --android`.
 - **Play Store**: serve un account sviluppatore Google (25 USD una tantum), una chiave di caricamento privata (da conservare nei Secrets di GitHub, mai nel repository), la build `bundleRelease` (file AAB), l'informativa sulla privacy e la scheda «Sicurezza dei dati» (l'app usa la posizione).
 
+## Privacy
+
+L'informativa è in `public/privacy.html`, pubblicata su https://mirkoori.github.io/OrtoMio/privacy.html (da indicare nella scheda del Play Store). Va aggiornata se si aggiungono pubblicità o account.
+
 ## Dati dell'utente
 
 L'orto di ogni utente è salvato **sul dispositivo** (Capacitor Preferences, con copia in localStorage nella versione web). Nessun server e nessun costo. I dati restano quando si chiude l'app, ma si perdono se si disinstalla l'app o si cancellano i dati. Il backup automatico di Android è attivo (`allowBackup`), quindi con il backup di Google attivo un telefono nuovo può ripristinarli. Per sincronizzare più dispositivi servirebbe un account con un servizio online (per esempio Supabase).
