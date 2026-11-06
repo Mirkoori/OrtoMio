@@ -18,6 +18,7 @@ const ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.openstreetmap.fr/api/interpreter",
 ];
 const MAX_RESULTS = 100;
 const CACHE_KEY = "ortomio-mappa";
@@ -77,7 +78,7 @@ function buildQuery(lat, lng, r) {
 async function fetchOnce(lat, lng, r) {
   const body = "data=" + encodeURIComponent(buildQuery(lat, lng, r));
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 18000);
+  const timer = setTimeout(() => ctl.abort(), 14000);
   try {
     return await Promise.any(ENDPOINTS.map((url) =>
       fetch(url, {
@@ -125,27 +126,47 @@ function searchRadius() {
   return Math.round(Math.min(10000, Math.max(2500, r)));
 }
 
+function applyElements(els, c, r) {
+  const seen = new Set();
+  const ref = origin || { lat: c.lat, lng: c.lng };
+  places = els.map(toPlace).filter((p) => p && !seen.has(p.id) && seen.add(p.id)).map((p) => {
+    p.km = haversineKm(ref, p);
+    return p;
+  });
+  lastSearch = { lat: c.lat, lng: c.lng, r };
+  saveCache();
+  if (sel && !places.some((p) => p.id === sel)) sel = null;
+}
+
+function kmText(r) { return (r / 1000).toFixed(1).replace(".", ","); }
+
+// Prima una ricerca piccola (risposta rapida), poi si allarga in sottofondo.
 async function search() {
   if (!map || busy) return;
-  const c = map.getCenter(), r = searchRadius();
+  const c = { lat: map.getCenter().lat, lng: map.getCenter().lng }, r = searchRadius();
+  const first = r > 4000 ? 3000 : r;
   busy = true; moved = false;
   status = "Cerco fruttivendoli, aziende agricole e mercati…";
   emit();
+  let ok = false;
   try {
-    const els = await fetchElements(c.lat, c.lng, r);
-    const seen = new Set();
-    const ref = origin || { lat: c.lat, lng: c.lng };
-    places = els.map(toPlace).filter((p) => p && !seen.has(p.id) && seen.add(p.id)).map((p) => {
-      p.km = haversineKm(ref, p);
-      return p;
-    });
-    lastSearch = { lat: c.lat, lng: c.lng, r };
-    saveCache();
-    const km = (r / 1000).toFixed(1).replace(".", ",");
+    applyElements(await fetchElements(c.lat, c.lng, first), c, first);
+    ok = true;
     status = places.length
-      ? places.length + " attività trovate entro " + km + " km. Dati OpenStreetMap."
-      : "Nessuna attività trovata entro " + km + " km. Sposta la mappa e tocca «Cerca in quest'area».";
-    if (sel && !places.some((p) => p.id === sel)) sel = null;
+      ? places.length + " attività entro " + kmText(first) + " km" + (first < r ? ". Cerco anche più lontano…" : ". Dati OpenStreetMap.")
+      : "Nessuna attività entro " + kmText(first) + " km" + (first < r ? ". Cerco più lontano…" : ". Sposta la mappa e tocca «Cerca in quest'area».");
+    drawMarkers(); emit();
+    if (first < r) {
+      try {
+        applyElements(await fetchElements(c.lat, c.lng, r), c, r);
+        status = places.length
+          ? places.length + " attività trovate entro " + kmText(r) + " km. Dati OpenStreetMap."
+          : "Nessuna attività trovata entro " + kmText(r) + " km. Sposta la mappa e tocca «Cerca in quest'area».";
+      } catch (e) {
+        status = places.length + " attività entro " + kmText(first) + " km. La ricerca più ampia non ha risposto: tocca «Cerca in quest'area» per riprovare.";
+        moved = true;
+      }
+    }
   } catch (e) {
     status = places.length
       ? "Server mappe occupato: mostro l'ultima ricerca. Tocca «Cerca in quest'area» per riprovare."
