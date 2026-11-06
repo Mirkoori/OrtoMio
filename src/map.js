@@ -17,8 +17,11 @@ const FALLBACK = { lat: 44.6471, lng: 10.9252, zoom: 12 };
 const ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
 ];
-const MAX_RESULTS = 120;
+const MAX_RESULTS = 100;
+const CACHE_KEY = "ortomio-mappa";
+const CACHE_MAX_AGE = 7 * 24 * 3600 * 1000;
 
 let map = null, layer = null, userMarker = null;
 let places = [], type = "all", sel = null;
@@ -63,37 +66,63 @@ function toPlace(el) {
 
 function buildQuery(lat, lng, r) {
   const a = "(around:" + r + "," + lat.toFixed(5) + "," + lng.toFixed(5) + ")";
-  return "[out:json][timeout:25];(" +
+  return "[out:json][timeout:15];(" +
     'nwr["shop"="greengrocer"]' + a + ";" +
     'nwr["shop"="farm"]' + a + ";" +
     'nwr["amenity"="marketplace"]' + a + ";" +
     ");out center " + MAX_RESULTS + ";";
 }
 
-async function fetchElements(lat, lng, r) {
+// Interroga tutti i server insieme: vince il primo che risponde, gli altri vengono annullati.
+async function fetchOnce(lat, lng, r) {
   const body = "data=" + encodeURIComponent(buildQuery(lat, lng, r));
-  let lastErr = null;
-  for (const url of ENDPOINTS) {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 28000);
-    try {
-      const res = await fetch(url, {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 18000);
+  try {
+    return await Promise.any(ENDPOINTS.map((url) =>
+      fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body, signal: ctl.signal,
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const json = await res.json();
-      return json.elements || [];
-    } catch (e) { lastErr = e; } finally { clearTimeout(timer); }
-  }
-  throw lastErr || new Error("rete");
+      }).then((res) => {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      }).then((json) => {
+        const els = json.elements || [];
+        if (!els.length && json.remark && /runtime error|timed out|out of memory/i.test(json.remark)) throw new Error("server occupato");
+        return els;
+      })
+    ));
+  } finally { clearTimeout(timer); ctl.abort(); }
+}
+
+async function fetchElements(lat, lng, r) {
+  try { return await fetchOnce(lat, lng, r); }
+  catch (e) { await new Promise((ok) => setTimeout(ok, 800)); return fetchOnce(lat, lng, r); }
+}
+
+function saveCache() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), search: lastSearch, origin, places }));
+  } catch (e) {}
+}
+
+function loadCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    if (!c || !c.search || !Array.isArray(c.places) || Date.now() - c.t > CACHE_MAX_AGE) return false;
+    places = c.places; lastSearch = c.search;
+    if (c.origin) setOrigin(c.origin.lat, c.origin.lng);
+    map.setView([c.search.lat, c.search.lng], 13);
+    status = "Risultati salvati dell'ultima ricerca, aggiorno…";
+    return true;
+  } catch (e) { return false; }
 }
 
 function searchRadius() {
   const b = map.getBounds();
   const r = map.distance(b.getCenter(), b.getNorthEast()) * 0.9;
-  return Math.round(Math.min(15000, Math.max(2500, r)));
+  return Math.round(Math.min(10000, Math.max(2500, r)));
 }
 
 async function search() {
@@ -111,13 +140,17 @@ async function search() {
       return p;
     });
     lastSearch = { lat: c.lat, lng: c.lng, r };
+    saveCache();
     const km = (r / 1000).toFixed(1).replace(".", ",");
     status = places.length
       ? places.length + " attività trovate entro " + km + " km. Dati OpenStreetMap."
       : "Nessuna attività trovata entro " + km + " km. Sposta la mappa e tocca «Cerca in quest'area».";
     if (sel && !places.some((p) => p.id === sel)) sel = null;
   } catch (e) {
-    status = "Non riesco a contattare il servizio mappe. Controlla la connessione e riprova.";
+    status = places.length
+      ? "Server mappe occupato: mostro l'ultima ricerca. Tocca «Cerca in quest'area» per riprovare."
+      : "Il servizio mappe non risponde adesso. Tocca «Cerca in quest'area» per riprovare.";
+    moved = true;
   }
   busy = false;
   drawMarkers();
@@ -208,7 +241,11 @@ export const mapApi = {
       map.on("moveend", checkMoved);
     }
     map.invalidateSize();
-    if (!started) { started = true; locate(true); }
+    if (!started) {
+      started = true;
+      if (loadCache()) { drawMarkers(); emit(); }
+      locate(true);
+    }
   },
   locate() { locate(false); },
   searchHere() { search(); },
