@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17392A">
+  <meta name="description" content="Orto Mio: verdure di stagione, calendario di semina, schede delle verdure e mappa di fruttivendoli, aziende agricole e mercati vicino a te.">
+  <title>Orto Mio: Verdure di Stagione</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Mono:wght@400;500&family=Hanken+Grotesk:wght@400..700&display=swap">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V11"/><path d="M12 11C12 7 9 5 5 5c0 4 3 6 7 6Z"/><path d="M12 14c0-3 2-5 6-5 0 3-2 5-6 5Z"/></svg></span>orto mio</div>
+    <span class="region"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>Nord Italia</span>
+  </header>
+
+  <main>
+    <!-- STAGIONE -->
+    <section id="v-stagione" class="view" aria-label="Verdure di stagione">
+      <div class="hero">
+        <span class="eyebrow">Di stagione a</span>
+        <h1 id="monthName">Novembre</h1>
+        <p id="heroSub"></p>
+        <div class="collage" id="collage" aria-hidden="true"></div>
+      </div>
+      <div class="months" id="months" role="tablist" aria-label="Mese"></div>
+      <div class="seg" id="seg" role="group" aria-label="Mostra"></div>
+      <label class="search">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+        <input id="q" type="search" placeholder="Cerca una verdura" autocomplete="off" aria-label="Cerca una verdura">
+      </label>
+      <div class="chips" id="cats" role="group" aria-label="Famiglia"></div>
+      <div class="count" id="count"></div>
+      <div class="grid" id="grid"></div>
+      <p class="foot">Calendari indicativi per il Nord Italia: cambiano con altitudine, esposizione e annata. Controlla sempre la bustina del seme.</p>
+    </section>
+
+    <!-- ORTO -->
+    <section id="v-orto" class="view" aria-label="Il mio orto" hidden>
+      <div class="vh">
+        <h2 id="ortoTitle">Da fare a novembre</h2>
+        <div class="step">
+          <button data-act="mprev" aria-label="Mese precedente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <button data-act="mnext" aria-label="Mese successivo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+      <div id="lanes"></div>
+      <div class="sec"><h3>Nel mio orto</h3><span id="plotCount"></span></div>
+      <p class="note">Le tre verdure segnate come esempio mostrano come funziona. Toglile quando vuoi e aggiungi le tue dalla scheda di ogni verdura.</p>
+      <ul class="plots" id="plots"></ul>
+    </section>
+
+    <!-- MAPPA -->
+    <section id="v-mappa" class="view" aria-label="Mappa dei produttori" hidden>
+      <div class="vh"><h2>Dove comprare</h2></div>
+      <p class="mapnote" id="mapStatus" role="status" aria-live="polite"></p>
+      <div class="chips" id="mchips" role="group" aria-label="Tipo di attività" style="padding-top:0"></div>
+      <div class="mapwrap" id="mapwrap">
+        <div id="map"></div>
+        <button class="maptool locate" data-act="locate">Vicino a me</button>
+        <button class="maptool searchhere" id="searchhere" data-act="searchhere" hidden>Cerca in quest'area</button>
+      </div>
+      <ul class="prods" id="prods"></ul>
+      <p class="foot">Mappa e attività da OpenStreetMap (© contributori OpenStreetMap, licenza ODbL). Se manca un'attività o un orario è sbagliato, puoi correggerlo su openstreetmap.org e comparirà alla prossima ricerca.</p>
+    </section>
+  </main>
+</div>
+
+<nav class="tabbar" aria-label="Sezioni">
+  <div class="tabs">
+    <a class="tab" href="#stagione" data-tab="stagione"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19C5 10 10 5 19 5c0 9-5 14-14 14Z"/><path d="M5 19 14 10"/></svg>Stagione</a>
+    <a class="tab" href="#orto" data-tab="orto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21V11"/><path d="M12 11C12 7 9 5 5 5c0 4 3 6 7 6Z"/><path d="M12 13c0-3 2-5 6-5 0 3-2 5-6 5Z"/><path d="M6 21h12"/></svg>Il mio orto</a>
+    <a class="tab" href="#mappa" data-tab="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>Mappa</a>
+  </div>
+</nav>
+
+<div id="sheetRoot"></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
