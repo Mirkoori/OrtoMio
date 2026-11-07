@@ -23,8 +23,20 @@ jobs:
       - name: Strumenti
         run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
 
-      - name: Scarica OpenStreetMap Italia (Geofabrik)
-        run: curl -fL --retry 3 -o italia.osm.pbf https://download.geofabrik.de/europe/italy-latest.osm.pbf && ls -lh italia.osm.pbf
+      - name: Scarica OpenStreetMap Italia
+        run: |
+          # Prova più copie dello stesso file: se una è lenta (meno di ~1 MB/s per 30 s) passa alla successiva.
+          for url in \
+            https://ftp5.gwdg.de/pub/misc/openstreetmap/download.geofabrik.de/italy-latest.osm.pbf \
+            https://download.openstreetmap.fr/extracts/europe/italy-latest.osm.pbf \
+            https://download.geofabrik.de/europe/italy-latest.osm.pbf; do
+            echo "Provo $url"
+            if curl -fL --retry 2 --connect-timeout 20 --speed-time 30 --speed-limit 1000000 --max-time 1500 -o italia.osm.pbf "$url"; then
+              ls -lh italia.osm.pbf; ok=1; break
+            fi
+            rm -f italia.osm.pbf
+          done
+          test "$ok" = 1
 
       - name: Estrai i luoghi
         run: |
