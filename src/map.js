@@ -17,10 +17,8 @@ const FALLBACK = { lat: 44.6471, lng: 10.9252, zoom: 12 };
 const ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.private.coffee/api/interpreter",
-  "https://overpass.openstreetmap.fr/api/interpreter",
 ];
-const PLACES_API = "https://dbstgkxqnzbaxxxdgqum.supabase.co/functions/v1/ortomio-places";
+const PHOTON = "https://photon.komoot.io/api/";
 const MAX_RESULTS = 100;
 const CACHE_KEY = "ortomio-mappa";
 const CACHE_MAX_AGE = 7 * 24 * 3600 * 1000;
@@ -68,7 +66,7 @@ function toPlace(el) {
 
 function buildQuery(lat, lng, r) {
   const a = "(around:" + r + "," + lat.toFixed(5) + "," + lng.toFixed(5) + ")";
-  return "[out:json][timeout:15];(" +
+  return "[out:json][timeout:40];(" +
     'nwr["shop"="greengrocer"]' + a + ";" +
     'nwr["shop"="farm"]' + a + ";" +
     'nwr["amenity"="marketplace"]' + a + ";" +
@@ -79,7 +77,7 @@ function buildQuery(lat, lng, r) {
 async function fetchOnce(lat, lng, r) {
   const body = "data=" + encodeURIComponent(buildQuery(lat, lng, r));
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 14000);
+  const timer = setTimeout(() => ctl.abort(), 45000);
   try {
     return await Promise.any(ENDPOINTS.map((url) =>
       fetch(url, {
@@ -98,23 +96,59 @@ async function fetchOnce(lat, lng, r) {
   } finally { clearTimeout(timer); ctl.abort(); }
 }
 
-// Prima il nostro servizio con cache (veloce), poi, se non risponde, i server pubblici.
-async function fetchViaApi(lat, lng, r) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 30000);
-  try {
-    const res = await fetch(PLACES_API + "?lat=" + lat.toFixed(5) + "&lng=" + lng.toFixed(5) + "&r=" + Math.round(r), { signal: ctl.signal });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const json = await res.json();
-    if (!Array.isArray(json.elements)) throw new Error("risposta non valida");
-    return json.elements;
-  } finally { clearTimeout(timer); }
-}
-
 async function fetchElements(lat, lng, r) {
-  try { return await fetchViaApi(lat, lng, r); } catch (e) { /* si passa ai server pubblici */ }
   try { return await fetchOnce(lat, lng, r); }
   catch (e) { await new Promise((ok) => setTimeout(ok, 800)); return fetchOnce(lat, lng, r); }
+}
+
+// Photon (komoot): risposta veloce, solo nome, tipo e indirizzo.
+const PHOTON_JOBS = [
+  { tag: "shop:farm", qs: ["farm", "azienda agricola"] },
+  { tag: "shop:greengrocer", qs: ["greengrocer", "fruttivendolo", "frutta e verdura"] },
+  { tag: "amenity:marketplace", qs: ["marketplace", "mercato"] },
+];
+
+function photonPlace(f) {
+  const pr = f.properties || {}, g = f.geometry && f.geometry.coordinates;
+  const t = classify(pr.osm_key === "shop" ? { shop: pr.osm_value } : pr.osm_key === "amenity" ? { amenity: pr.osm_value } : {});
+  if (!t || !g || !pr.osm_id) return null;
+  const kind = { N: "node", W: "way", R: "relation" }[pr.osm_type];
+  if (!kind) return null;
+  const street = [pr.street, pr.housenumber].filter(Boolean).join(" ");
+  return {
+    id: kind + "/" + pr.osm_id,
+    type: t,
+    name: pr.name || ({ frutt: "Fruttivendolo", farm: "Azienda agricola", contadino: "Mercato" })[t],
+    lat: g[1], lng: g[0],
+    addr: [street, pr.city || pr.district].filter(Boolean).join(", "),
+    hours: "", website: "", phone: "",
+  };
+}
+
+async function fetchPhoton(c, r) {
+  const dLat = r / 111320, dLng = r / (111320 * Math.cos(c.lat * Math.PI / 180));
+  const bbox = [c.lng - dLng, c.lat - dLat, c.lng + dLng, c.lat + dLat].map((n) => n.toFixed(5)).join(",");
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 12000);
+  try {
+    const reqs = [];
+    PHOTON_JOBS.forEach((j) => j.qs.forEach((q) => {
+      const url = PHOTON + "?q=" + encodeURIComponent(q) + "&osm_tag=" + encodeURIComponent(j.tag) +
+        "&bbox=" + bbox + "&lat=" + c.lat.toFixed(5) + "&lon=" + c.lng.toFixed(5) + "&limit=50&lang=it";
+      reqs.push(fetch(url, { signal: ctl.signal }).then((res) => {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      }).then((j2) => j2.features || []).catch(() => null));
+    }));
+    const all = await Promise.all(reqs);
+    if (all.every((x) => x === null)) throw new Error("photon");
+    const seen = new Set(), out = [];
+    all.forEach((fs) => (fs || []).forEach((f) => {
+      const p = photonPlace(f);
+      if (p && !seen.has(p.id)) { seen.add(p.id); out.push(p); }
+    }));
+    return out;
+  } finally { clearTimeout(timer); }
 }
 
 function saveCache() {
@@ -141,13 +175,10 @@ function searchRadius() {
   return Math.round(Math.min(10000, Math.max(2500, r)));
 }
 
-function applyElements(els, c, r) {
-  const seen = new Set();
+function setPlaces(list, c, r) {
   const ref = origin || { lat: c.lat, lng: c.lng };
-  places = els.map(toPlace).filter((p) => p && !seen.has(p.id) && seen.add(p.id)).map((p) => {
-    p.km = haversineKm(ref, p);
-    return p;
-  });
+  list.forEach((p) => { p.km = haversineKm(ref, p); });
+  places = list;
   lastSearch = { lat: c.lat, lng: c.lng, r };
   saveCache();
   if (sel && !places.some((p) => p.id === sel)) sel = null;
@@ -155,37 +186,46 @@ function applyElements(els, c, r) {
 
 function kmText(r) { return (r / 1000).toFixed(1).replace(".", ","); }
 
-// Prima una ricerca piccola (risposta rapida), poi si allarga in sottofondo.
+// Photon risponde subito; Overpass (più lento) aggiunge orari, sito e telefono.
 async function search() {
   if (!map || busy) return;
   const c = { lat: map.getCenter().lat, lng: map.getCenter().lng }, r = searchRadius();
-  const first = r > 4000 ? 3000 : r;
+  const rOv = Math.min(r, 6000);
   busy = true; moved = false;
   status = "Cerco fruttivendoli, aziende agricole e mercati…";
   emit();
-  let ok = false;
-  try {
-    applyElements(await fetchElements(c.lat, c.lng, first), c, first);
-    ok = true;
-    status = places.length
-      ? places.length + " attività entro " + kmText(first) + " km" + (first < r ? ". Cerco anche più lontano…" : ". Dati OpenStreetMap.")
-      : "Nessuna attività entro " + kmText(first) + " km" + (first < r ? ". Cerco più lontano…" : ". Sposta la mappa e tocca «Cerca in quest'area».");
+
+  const ph = fetchPhoton(c, r).catch(() => null);
+  const ov = fetchElements(c.lat, c.lng, rOv)
+    .then((els) => { const seen = new Set(); return els.map(toPlace).filter((p) => p && !seen.has(p.id) && seen.add(p.id)); })
+    .catch(() => null);
+
+  const quick = await ph;
+  if (quick) {
+    setPlaces(quick, c, r);
+    status = quick.length
+      ? quick.length + " attività entro " + kmText(r) + " km. Aggiungo orari e contatti…"
+      : "Nessuna attività trovata subito. Controllo con un'altra fonte…";
     drawMarkers(); emit();
-    if (first < r) {
-      try {
-        applyElements(await fetchElements(c.lat, c.lng, r), c, r);
-        status = places.length
-          ? places.length + " attività trovate entro " + kmText(r) + " km. Dati OpenStreetMap."
-          : "Nessuna attività trovata entro " + kmText(r) + " km. Sposta la mappa e tocca «Cerca in quest'area».";
-      } catch (e) {
-        status = places.length + " attività entro " + kmText(first) + " km. La ricerca più ampia non ha risposto: tocca «Cerca in quest'area» per riprovare.";
-        moved = true;
-      }
-    }
-  } catch (e) {
+  }
+
+  const full = await ov;
+  if (full) {
+    const byId = new Map();
+    (quick || []).forEach((p) => byId.set(p.id, p));
+    full.forEach((p) => byId.set(p.id, p)); // Overpass ha più dettagli: vince
+    setPlaces(Array.from(byId.values()), c, r);
     status = places.length
-      ? "Server mappe occupato: mostro l'ultima ricerca. Tocca «Cerca in quest'area» per riprovare."
-      : "Il servizio mappe non risponde adesso. Tocca «Cerca in quest'area» per riprovare.";
+      ? places.length + " attività trovate entro " + kmText(r) + " km. Dati OpenStreetMap."
+      : "Nessuna attività trovata entro " + kmText(r) + " km. Sposta la mappa e tocca «Cerca in quest'area».";
+  } else if (quick) {
+    status = quick.length
+      ? quick.length + " attività trovate entro " + kmText(r) + " km (senza orari e contatti: il server dei dettagli non ha risposto). Dati OpenStreetMap."
+      : "Nessuna attività trovata entro " + kmText(r) + " km. Sposta la mappa e tocca «Cerca in quest'area».";
+  } else {
+    status = places.length
+      ? "Servizi mappe non raggiungibili: mostro l'ultima ricerca. Tocca «Cerca in quest'area» per riprovare."
+      : "I servizi mappe non rispondono adesso. Controlla la connessione e tocca «Cerca in quest'area».";
     moved = true;
   }
   busy = false;
