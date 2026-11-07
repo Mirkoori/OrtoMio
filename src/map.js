@@ -20,6 +20,7 @@ const ENDPOINTS = [
   "https://overpass.private.coffee/api/interpreter",
   "https://overpass.openstreetmap.fr/api/interpreter",
 ];
+const PLACES_API = "https://dbstgkxqnzbaxxxdgqum.supabase.co/functions/v1/ortomio-places";
 const MAX_RESULTS = 100;
 const CACHE_KEY = "ortomio-mappa";
 const CACHE_MAX_AGE = 7 * 24 * 3600 * 1000;
@@ -97,7 +98,21 @@ async function fetchOnce(lat, lng, r) {
   } finally { clearTimeout(timer); ctl.abort(); }
 }
 
+// Prima il nostro servizio con cache (veloce), poi, se non risponde, i server pubblici.
+async function fetchViaApi(lat, lng, r) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const res = await fetch(PLACES_API + "?lat=" + lat.toFixed(5) + "&lng=" + lng.toFixed(5) + "&r=" + Math.round(r), { signal: ctl.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    if (!Array.isArray(json.elements)) throw new Error("risposta non valida");
+    return json.elements;
+  } finally { clearTimeout(timer); }
+}
+
 async function fetchElements(lat, lng, r) {
+  try { return await fetchViaApi(lat, lng, r); } catch (e) { /* si passa ai server pubblici */ }
   try { return await fetchOnce(lat, lng, r); }
   catch (e) { await new Promise((ok) => setTimeout(ok, 800)); return fetchOnce(lat, lng, r); }
 }

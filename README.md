@@ -32,7 +32,7 @@ src/style.css     grafica (tema chiaro e scuro automatici)
 
 ## Mappa e dati
 
-- Le attività arrivano da OpenStreetMap tramite l'API Overpass: `shop=greengrocer` (fruttivendoli), `shop=farm` (vendita diretta in azienda), `amenity=marketplace` (mercati). La qualità dipende da quanto la zona è mappata: chi manca o ha orari sbagliati si corregge su openstreetmap.org.
+- Le attività arrivano da OpenStreetMap tramite l'API Overpass, interrogata da una funzione Supabase (`ortomio-places`, tabella `ortomio_map_cache`) che tiene i risultati in cache 7 giorni; se non risponde l'app interroga direttamente i server pubblici: `shop=greengrocer` (fruttivendoli), `shop=farm` (vendita diretta in azienda), `amenity=marketplace` (mercati). La qualità dipende da quanto la zona è mappata: chi manca o ha orari sbagliati si corregge su openstreetmap.org.
 - Gli orari sono mostrati come scritti in OpenStreetMap, senza calcolare "aperto ora".
 - I tile pubblici di OpenStreetMap vanno bene per sviluppo e piccoli numeri. Con molti utenti serve un fornitore di tile (MapTiler, Stadia, Thunderforest o tile propri) e un'istanza Overpass propria o a pagamento. Vedi la [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
 - Attribuzione obbligatoria: © contributori OpenStreetMap (ODbL). È già mostrata nella mappa e nella pagina.
