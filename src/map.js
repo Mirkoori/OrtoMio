@@ -12,21 +12,16 @@ export const TYPES = [
 ];
 export const TLAB = { farm: "Azienda agricola", contadino: "Mercato", frutt: "Fruttivendolo" };
 
-// Centro usato se la posizione non è disponibile (Modena). Cambialo a piacere.
+// Archivio dei luoghi (OpenStreetMap Italia), costruito da GitHub ogni mese e incluso nell'app.
+// Colonne: [id, tipo, lat, lng, nome, indirizzo, orari, sito, telefono]
 const FALLBACK = { lat: 44.6471, lng: 10.9252, zoom: 12 };
-const ENDPOINTS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-];
-const PHOTON = "https://photon.komoot.io/api/";
-const MAX_RESULTS = 100;
-const CACHE_KEY = "ortomio-mappa";
-const CACHE_MAX_AGE = 7 * 24 * 3600 * 1000;
+const MAX_LIST = 150;
 
-let map = null, layer = null, userMarker = null;
+let map = null, layer = null, userMarker = null, timer = null;
 let places = [], type = "all", sel = null;
-let origin = null, originLabel = "da qui", lastSearch = null;
-let status = "", busy = false, moved = false, started = false;
+let origin = null, originLabel = "da qui";
+let notice = "", status = "", busy = false, moved = false, started = false;
+let archive = null, archiveDate = "", loadError = false;
 let onChange = function () {};
 
 function emit() { onChange(); }
@@ -38,199 +33,67 @@ function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-function classify(tags) {
-  if (tags.shop === "greengrocer") return "frutt";
-  if (tags.shop === "farm") return "farm";
-  if (tags.amenity === "marketplace") return "contadino";
-  return null;
-}
 
-function toPlace(el) {
-  const tags = el.tags || {};
-  const t = classify(tags);
-  const lat = el.lat !== undefined ? el.lat : el.center && el.center.lat;
-  const lng = el.lon !== undefined ? el.lon : el.center && el.center.lon;
-  if (!t || lat === undefined || lng === undefined) return null;
-  const street = [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(" ");
-  const addr = [street, tags["addr:city"]].filter(Boolean).join(", ");
-  return {
-    id: el.type + "/" + el.id,
-    type: t,
-    name: tags.name || ({ frutt: "Fruttivendolo", farm: "Azienda agricola", contadino: "Mercato" })[t],
-    lat, lng, addr,
-    hours: tags.opening_hours || "",
-    website: tags.website || tags["contact:website"] || "",
-    phone: tags.phone || tags["contact:phone"] || "",
-  };
-}
+const DEFAULT_NAME = { frutt: "Fruttivendolo", farm: "Azienda agricola", contadino: "Mercato" };
 
-function buildQuery(lat, lng, r) {
-  const a = "(around:" + r + "," + lat.toFixed(5) + "," + lng.toFixed(5) + ")";
-  return "[out:json][timeout:40];(" +
-    'nwr["shop"="greengrocer"]' + a + ";" +
-    'nwr["shop"="farm"]' + a + ";" +
-    'nwr["amenity"="marketplace"]' + a + ";" +
-    ");out center " + MAX_RESULTS + ";";
-}
-
-// Interroga tutti i server insieme: vince il primo che risponde, gli altri vengono annullati.
-async function fetchOnce(lat, lng, r) {
-  const body = "data=" + encodeURIComponent(buildQuery(lat, lng, r));
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 45000);
-  try {
-    return await Promise.any(ENDPOINTS.map((url) =>
-      fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body, signal: ctl.signal,
-      }).then((res) => {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      }).then((json) => {
-        const els = json.elements || [];
-        if (!els.length && json.remark && /runtime error|timed out|out of memory/i.test(json.remark)) throw new Error("server occupato");
-        return els;
-      })
-    ));
-  } finally { clearTimeout(timer); ctl.abort(); }
-}
-
-async function fetchElements(lat, lng, r) {
-  try { return await fetchOnce(lat, lng, r); }
-  catch (e) { await new Promise((ok) => setTimeout(ok, 800)); return fetchOnce(lat, lng, r); }
-}
-
-// Photon (komoot): risposta veloce, solo nome, tipo e indirizzo.
-const PHOTON_JOBS = [
-  { tag: "shop:farm", qs: ["farm", "azienda agricola"] },
-  { tag: "shop:greengrocer", qs: ["greengrocer", "fruttivendolo", "frutta e verdura"] },
-  { tag: "amenity:marketplace", qs: ["marketplace", "mercato"] },
-];
-
-function photonPlace(f) {
-  const pr = f.properties || {}, g = f.geometry && f.geometry.coordinates;
-  const t = classify(pr.osm_key === "shop" ? { shop: pr.osm_value } : pr.osm_key === "amenity" ? { amenity: pr.osm_value } : {});
-  if (!t || !g || !pr.osm_id) return null;
-  const kind = { N: "node", W: "way", R: "relation" }[pr.osm_type];
-  if (!kind) return null;
-  const street = [pr.street, pr.housenumber].filter(Boolean).join(" ");
-  return {
-    id: kind + "/" + pr.osm_id,
-    type: t,
-    name: pr.name || ({ frutt: "Fruttivendolo", farm: "Azienda agricola", contadino: "Mercato" })[t],
-    lat: g[1], lng: g[0],
-    addr: [street, pr.city || pr.district].filter(Boolean).join(", "),
-    hours: "", website: "", phone: "",
-  };
-}
-
-async function fetchPhoton(c, r) {
-  const dLat = r / 111320, dLng = r / (111320 * Math.cos(c.lat * Math.PI / 180));
-  const bbox = [c.lng - dLng, c.lat - dLat, c.lng + dLng, c.lat + dLat].map((n) => n.toFixed(5)).join(",");
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 12000);
-  try {
-    const reqs = [];
-    PHOTON_JOBS.forEach((j) => j.qs.forEach((q) => {
-      const url = PHOTON + "?q=" + encodeURIComponent(q) + "&osm_tag=" + encodeURIComponent(j.tag) +
-        "&bbox=" + bbox + "&lat=" + c.lat.toFixed(5) + "&lon=" + c.lng.toFixed(5) + "&limit=50&lang=it";
-      reqs.push(fetch(url, { signal: ctl.signal }).then((res) => {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      }).then((j2) => j2.features || []).catch(() => null));
+function loadArchive() {
+  return Promise.all([
+    fetch("./data/luoghi.json").then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }),
+    fetch("./data/luoghi-meta.json").then((r) => r.json()).catch(() => ({})),
+  ]).then(([rows, meta]) => {
+    archive = rows.map((r) => ({
+      id: r[0], type: r[1], lat: r[2], lng: r[3],
+      name: r[4] || DEFAULT_NAME[r[1]], addr: r[5], hours: r[6], website: r[7], phone: r[8],
     }));
-    const all = await Promise.all(reqs);
-    if (all.every((x) => x === null)) throw new Error("photon");
-    const seen = new Set(), out = [];
-    all.forEach((fs) => (fs || []).forEach((f) => {
-      const p = photonPlace(f);
-      if (p && !seen.has(p.id)) { seen.add(p.id); out.push(p); }
-    }));
-    return out;
-  } finally { clearTimeout(timer); }
+    archiveDate = meta.data || "";
+  });
 }
 
-function saveCache() {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), search: lastSearch, origin, places }));
-  } catch (e) {}
-}
-
-function loadCache() {
-  try {
-    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-    if (!c || !c.search || !Array.isArray(c.places) || Date.now() - c.t > CACHE_MAX_AGE) return false;
-    places = c.places; lastSearch = c.search;
-    if (c.origin) setOrigin(c.origin.lat, c.origin.lng);
-    map.setView([c.search.lat, c.search.lng], 13);
-    status = "Risultati salvati dell'ultima ricerca, aggiorno…";
-    return true;
-  } catch (e) { return false; }
+function fmtDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+  return m ? m[3] + "/" + m[2] + "/" + m[1] : "";
 }
 
 function searchRadius() {
   const b = map.getBounds();
-  const r = map.distance(b.getCenter(), b.getNorthEast()) * 0.9;
-  return Math.round(Math.min(10000, Math.max(2500, r)));
+  const r = map.distance(b.getCenter(), b.getNorthEast()) * 0.95;
+  return Math.round(Math.min(30000, Math.max(2000, r)));
 }
 
-function setPlaces(list, c, r) {
+function kmText(r) { return (r / 1000).toFixed(r < 10000 ? 1 : 0).replace(".", ","); }
+
+// Ricerca nell'archivio: istantanea, funziona anche offline.
+function search() {
+  if (!map) return;
+  if (loadError) { status = "Archivio dei luoghi non disponibile. Riavvia l'app e riprova."; emit(); return; }
+  if (!archive) { status = "Carico l'archivio dei luoghi…"; busy = true; emit(); return; }
+  busy = false; moved = false;
+  const c = map.getCenter(), r = searchRadius();
+  const dLat = r / 111320, dLng = r / (111320 * Math.cos(c.lat * Math.PI / 180));
   const ref = origin || { lat: c.lat, lng: c.lng };
-  list.forEach((p) => { p.km = haversineKm(ref, p); });
-  places = list;
-  lastSearch = { lat: c.lat, lng: c.lng, r };
-  saveCache();
+  const found = [];
+  for (let i = 0; i < archive.length; i++) {
+    const p = archive[i];
+    if (Math.abs(p.lat - c.lat) > dLat || Math.abs(p.lng - c.lng) > dLng) continue;
+    const dc = haversineKm(c, p);
+    if (dc * 1000 > r) continue;
+    found.push({ p, dc });
+  }
+  found.sort((a, b) => a.dc - b.dc);
+  places = found.slice(0, MAX_LIST).map((x) => { x.p.km = haversineKm(ref, x.p); return x.p; });
   if (sel && !places.some((p) => p.id === sel)) sel = null;
-}
-
-function kmText(r) { return (r / 1000).toFixed(1).replace(".", ","); }
-
-// Photon risponde subito; Overpass (più lento) aggiunge orari, sito e telefono.
-async function search() {
-  if (!map || busy) return;
-  const c = { lat: map.getCenter().lat, lng: map.getCenter().lng }, r = searchRadius();
-  const rOv = Math.min(r, 6000);
-  busy = true; moved = false;
-  status = "Cerco fruttivendoli, aziende agricole e mercati…";
-  emit();
-
-  const ph = fetchPhoton(c, r).catch(() => null);
-  const ov = fetchElements(c.lat, c.lng, rOv)
-    .then((els) => { const seen = new Set(); return els.map(toPlace).filter((p) => p && !seen.has(p.id) && seen.add(p.id)); })
-    .catch(() => null);
-
-  const quick = await ph;
-  if (quick) {
-    setPlaces(quick, c, r);
-    status = quick.length
-      ? quick.length + " attività entro " + kmText(r) + " km. Aggiungo orari e contatti…"
-      : "Nessuna attività trovata subito. Controllo con un'altra fonte…";
-    drawMarkers(); emit();
-  }
-
-  const full = await ov;
-  if (full) {
-    const byId = new Map();
-    (quick || []).forEach((p) => byId.set(p.id, p));
-    full.forEach((p) => byId.set(p.id, p)); // Overpass ha più dettagli: vince
-    setPlaces(Array.from(byId.values()), c, r);
-    status = places.length
-      ? places.length + " attività trovate entro " + kmText(r) + " km. Dati OpenStreetMap."
-      : "Nessuna attività trovata entro " + kmText(r) + " km. Sposta la mappa e tocca «Cerca in quest'area».";
-  } else if (quick) {
-    status = quick.length
-      ? quick.length + " attività trovate entro " + kmText(r) + " km (senza orari e contatti: il server dei dettagli non ha risposto). Dati OpenStreetMap."
-      : "Nessuna attività trovata entro " + kmText(r) + " km. Sposta la mappa e tocca «Cerca in quest'area».";
-  } else {
-    status = places.length
-      ? "Servizi mappe non raggiungibili: mostro l'ultima ricerca. Tocca «Cerca in quest'area» per riprovare."
-      : "I servizi mappe non rispondono adesso. Controlla la connessione e tocca «Cerca in quest'area».";
-    moved = true;
-  }
-  busy = false;
+  const when = archiveDate ? " Dati OpenStreetMap del " + fmtDate(archiveDate) + "." : " Dati OpenStreetMap.";
+  if (!archive.length) status = "L'archivio dei luoghi non è ancora stato creato. Riprova dopo il prossimo aggiornamento.";
+  else if (!places.length) status = "Nessuna attività entro " + kmText(r) + " km: la zona potrebbe non essere mappata. Sposta la mappa." + when;
+  else status = (found.length > MAX_LIST ? "Le " + MAX_LIST + " più vicine" : places.length + " attività") + " entro " + kmText(r) + " km." + when;
+  if (notice) status = notice + " " + status;
   drawMarkers();
   emit();
+}
+
+function scheduleSearch() {
+  clearTimeout(timer);
+  timer = setTimeout(search, 350);
 }
 
 function visible() { return places.filter((p) => type === "all" || p.type === type); }
@@ -254,13 +117,6 @@ function drawMarkers() {
   });
 }
 
-function checkMoved() {
-  if (!lastSearch || busy) return;
-  const c = map.getCenter();
-  const far = haversineKm(c, lastSearch) > Math.max(1.5, (lastSearch.r / 1000) * 0.4);
-  if (far !== moved) { moved = far; emit(); }
-}
-
 function setOrigin(lat, lng) {
   origin = { lat, lng };
   originLabel = "da te";
@@ -279,12 +135,13 @@ async function getPosition() {
 function locate(silent) {
   if (!map) return;
   const fallback = (msg) => {
-    status = msg;
+    notice = msg;
     map.setView([FALLBACK.lat, FALLBACK.lng], FALLBACK.zoom);
     search();
   };
   status = "Cerco la tua posizione…"; emit();
   getPosition().then((pos) => {
+    notice = "";
     setOrigin(pos.coords.latitude, pos.coords.longitude);
     map.setView([pos.coords.latitude, pos.coords.longitude], 13);
     search();
@@ -314,14 +171,11 @@ export const mapApi = {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
       }).addTo(map);
       layer = L.layerGroup().addTo(map);
-      map.on("moveend", checkMoved);
+      map.on("moveend", scheduleSearch);
+      loadArchive().then(() => search()).catch(() => { loadError = true; search(); });
     }
     map.invalidateSize();
-    if (!started) {
-      started = true;
-      if (loadCache()) { drawMarkers(); emit(); }
-      locate(true);
-    }
+    if (!started) { started = true; locate(true); }
   },
   locate() { locate(false); },
   searchHere() { search(); },

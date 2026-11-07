@@ -1,0 +1,52 @@
+name: Aggiorna archivio luoghi
+
+on:
+  schedule:
+    - cron: "17 3 5 * *"   # il 5 di ogni mese
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dati
+  cancel-in-progress: false
+
+jobs:
+  luoghi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Strumenti
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
+
+      - name: Scarica OpenStreetMap Italia (Geofabrik)
+        run: curl -fL --retry 3 -o italia.osm.pbf https://download.geofabrik.de/europe/italy-latest.osm.pbf && ls -lh italia.osm.pbf
+
+      - name: Estrai i luoghi
+        run: |
+          osmium tags-filter italia.osm.pbf nwr/shop=farm nwr/shop=greengrocer nwr/amenity=marketplace -o luoghi.osm.pbf
+          osmium export luoghi.osm.pbf -f geojsonseq --geometry-types=point,polygon --add-unique-id=type_id -o luoghi.geojsonseq
+          ls -lh luoghi.osm.pbf luoghi.geojsonseq
+
+      - name: Costruisci l'archivio compatto
+        run: |
+          python3 scripts/build_luoghi.py luoghi.geojsonseq public/data/luoghi.json public/data/luoghi-meta.json
+          ls -lh public/data
+          cat public/data/luoghi-meta.json
+
+      - name: Salva nel repository e ricostruisci l'app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add public/data
+          if git diff --cached --quiet; then echo "Nessuna novità"; exit 0; fi
+          git commit -m "Aggiorna archivio luoghi $(date +%F)"
+          git push
+          gh workflow run pages.yml
+          gh workflow run android.yml

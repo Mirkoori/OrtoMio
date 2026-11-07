@@ -26,13 +26,13 @@ index.html        pagina e struttura delle tre sezioni
 src/main.js       stato, schermate Stagione e Il mio orto, scheda verdura, navigazione
 src/data.js       dati delle verdure (calendari indicativi per il Nord Italia)
 src/art.js        illustrazioni SVG delle verdure
-src/map.js        mappa Leaflet, posizione dell'utente, ricerca con Overpass
+src/map.js        mappa Leaflet, posizione dell'utente, ricerca nell'archivio dei luoghi
 src/style.css     grafica (tema chiaro e scuro automatici)
 ```
 
 ## Mappa e dati
 
-- Le attività arrivano da OpenStreetMap. **Photon** (photon.komoot.io, filtri `osm_tag`) risponde subito con nome, tipo e indirizzo; **Overpass** (`shop=greengrocer`, `shop=farm`, `amenity=marketplace`) è più lento (anche 20 s) e aggiunge orari, sito e telefono. I due risultati vengono uniti per id OSM. Overpass blocca le richieste da data center (406), quindi non può essere chiamato da funzioni cloud. La qualità dipende da quanto la zona è mappata: chi manca o ha orari sbagliati si corregge su openstreetmap.org.
+- **Archivio locale**: i luoghi (`shop=farm`, `shop=greengrocer`, `amenity=marketplace`) sono estratti da OpenStreetMap Italia (Geofabrik) dal workflow `Aggiorna archivio luoghi` (`.github/workflows/dati.yml`, ogni mese o a mano da Actions) con `scripts/build_luoghi.py`, e salvati in `public/data/luoghi.json` (incluso nell'app, funziona offline). La ricerca sulla mappa è un filtro locale, istantaneo. Dopo l'aggiornamento il workflow ricostruisce sito e APK. Per le prove: `public/data/luoghi.json` è un array di `[id, tipo, lat, lng, nome, indirizzo, orari, sito, telefono]`. La qualità dipende da quanto la zona è mappata: chi manca o ha orari sbagliati si corregge su openstreetmap.org e arriva con l'aggiornamento successivo.
 - Gli orari sono mostrati come scritti in OpenStreetMap, senza calcolare "aperto ora".
 - I tile pubblici di OpenStreetMap vanno bene per sviluppo e piccoli numeri. Con molti utenti serve un fornitore di tile (MapTiler, Stadia, Thunderforest o tile propri) e un'istanza Overpass propria o a pagamento. Vedi la [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
 - Attribuzione obbligatoria: © contributori OpenStreetMap (ODbL). È già mostrata nella mappa e nella pagina.
