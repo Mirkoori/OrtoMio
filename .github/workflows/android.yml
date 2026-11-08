@@ -36,7 +36,9 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          # il download di Gradle da GitHub può dare errori temporanei (504): fino a 3 tentativi
+          for i in 1 2 3; do ./gradlew assembleDebug --no-daemon && exit 0; echo "Tentativo $i fallito"; sleep 20; done
+          exit 1
 
       - name: Prepara il file
         run: cp android/app/build/outputs/apk/debug/app-debug.apk OrtoMio.apk
