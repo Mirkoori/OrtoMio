@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Strumenti
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool && pip install --quiet shapely
 
       - name: Scarica OpenStreetMap Italia
         run: |
@@ -44,9 +44,16 @@ jobs:
           osmium export luoghi.osm.pbf -f geojsonseq --geometry-types=point,polygon --add-unique-id=type_id -o luoghi.geojsonseq
           ls -lh luoghi.osm.pbf luoghi.geojsonseq
 
+      - name: Estrai i confini di regioni, province e comuni
+        run: |
+          osmium tags-filter italia.osm.pbf r/boundary=administrative -o conf0.osm.pbf
+          osmium tags-filter conf0.osm.pbf r/admin_level=4,6,8 -o conf.osm.pbf
+          osmium export conf.osm.pbf -f geojsonseq --geometry-types=polygon -o confini.geojsonseq
+          ls -lh conf.osm.pbf confini.geojsonseq
+
       - name: Costruisci l'archivio compatto
         run: |
-          python3 scripts/build_luoghi.py luoghi.geojsonseq public/data/luoghi.json public/data/luoghi-meta.json
+          python3 scripts/build_luoghi.py luoghi.geojsonseq confini.geojsonseq public/data/luoghi.json public/data/luoghi-meta.json
           ls -lh public/data
           cat public/data/luoghi-meta.json
 
