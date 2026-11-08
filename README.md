@@ -1,12 +1,12 @@
 # Orto Mio
 
-App per fare l'orto: verdure di stagione, schede con calendario di semina e consigli, il proprio orto e una mappa reale di fruttivendoli, aziende agricole e mercati vicino a te.
+App per fare l'orto: verdure di stagione, schede con calendario di semina e consigli, il proprio orto e una guida ai fruttivendoli, alle aziende agricole e ai mercati di tutta Italia.
 
 ## Cosa c'è
 
 - **Stagione**: 26 verdure con selettore del mese, filtri (di stagione, da seminare, tutte), ricerca e famiglie. Ogni scheda ha calendario di semina, trapianto e raccolta, sole, acqua, distanze, giorni al raccolto, difficoltà, vicini buoni e cattivi, calorie e un consiglio.
 - **Il mio orto**: cosa seminare, trapiantare e raccogliere nel mese scelto, più l'elenco delle verdure coltivate con l'avanzamento verso il raccolto. I dati restano sul dispositivo (localStorage).
-- **Mappa**: mappa OpenStreetMap con Leaflet. Cerca vicino alla tua posizione (o in qualsiasi zona spostando la mappa) fruttivendoli, aziende agricole con vendita diretta e mercati, con indicazioni, sito e telefono quando presenti.
+- **Guida**: elenco di aziende agricole, mercati e fruttivendoli di tutta Italia, filtrabile per regione, provincia e città, con ricerca per nome e tipo. «Vicino a me» ordina per distanza. Ogni scheda ha indirizzo, orari, indicazioni, sito e telefono quando presenti. Nessuna mappa e nessuna connessione: l'elenco è dentro l'app.
 
 ## Avvio
 
@@ -26,16 +26,16 @@ index.html        pagina e struttura delle tre sezioni
 src/main.js       stato, schermate Stagione e Il mio orto, scheda verdura, navigazione
 src/data.js       dati delle verdure (calendari indicativi per il Nord Italia)
 src/art.js        illustrazioni SVG delle verdure
-src/map.js        mappa Leaflet, posizione dell'utente, ricerca nell'archivio dei luoghi
+src/guida.js      archivio dei luoghi, filtri per regione/provincia/città, «Vicino a me»
 src/style.css     grafica (tema chiaro e scuro automatici)
 ```
 
-## Mappa e dati
+## Guida e dati
 
-- **Archivio locale**: i luoghi (`shop=farm`, `shop=greengrocer`, `amenity=marketplace`) sono estratti da OpenStreetMap Italia (Geofabrik) dal workflow `Aggiorna archivio luoghi` (`.github/workflows/dati.yml`, ogni mese o a mano da Actions) con `scripts/build_luoghi.py`, e salvati in `public/data/luoghi.json` (incluso nell'app, funziona offline). La ricerca sulla mappa è un filtro locale, istantaneo. Dopo l'aggiornamento il workflow ricostruisce sito e APK. Per le prove: `public/data/luoghi.json` è un array di `[id, tipo, lat, lng, nome, indirizzo, orari, sito, telefono]`. La qualità dipende da quanto la zona è mappata: chi manca o ha orari sbagliati si corregge su openstreetmap.org e arriva con l'aggiornamento successivo.
-- Gli orari sono mostrati come scritti in OpenStreetMap, senza calcolare "aperto ora".
-- I tile pubblici di OpenStreetMap vanno bene per sviluppo e piccoli numeri. Con molti utenti serve un fornitore di tile (MapTiler, Stadia, Thunderforest o tile propri) e, se servisse, aggiornamenti più frequenti dell'archivio. Vedi la [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
-- Attribuzione obbligatoria: © contributori OpenStreetMap (ODbL). È già mostrata nella mappa e nella pagina.
+- **Archivio locale**: i luoghi (`shop=farm`, `shop=greengrocer`, `amenity=marketplace`) sono estratti da OpenStreetMap Italia (Geofabrik) dal workflow `Aggiorna archivio luoghi` (`.github/workflows/dati.yml`, ogni mese o a mano da Actions) con `scripts/build_luoghi.py`. Lo script assegna a ogni luogo comune, provincia e regione con i confini amministrativi OSM (livelli 8, 6, 4) e scrive `public/data/luoghi.json`, incluso nell'app. Dopo l'aggiornamento il workflow ricostruisce sito e APK.
+- Formato: `{"v":2,"reg":[…],"prov":[[nome,sigla,reg]…],"com":[[nome,prov]…],"luoghi":[[id,tipo,lat,lng,nome,indirizzo,orari,sito,telefono,comune]…]}`.
+- La qualità dipende da quanto la zona è mappata (le aziende agricole sono mappate meno dei negozi): chi manca o ha orari sbagliati si corregge su openstreetmap.org e arriva con l'aggiornamento successivo.
+- Attribuzione obbligatoria: © contributori OpenStreetMap (ODbL). È mostrata nella guida e nella pagina.
 
 ## App Android
 
@@ -46,7 +46,7 @@ L'app è impacchettata con [Capacitor](https://capacitorjs.com). Il progetto And
 - **Identificativo dell'app**: `it.devori.ortomio` (in `capacitor.config.json` e `android/app/build.gradle`). Cambialo prima della prima pubblicazione: dopo non si può più cambiare.
 - **Su computer**: `npm run build`, `npx cap sync android`, `npx cap open android` (serve Android Studio).
 - **Icone**: sorgenti in `assets/`. Dopo averle modificate: `npx capacitor-assets generate --android`.
-- **Play Store**: serve un account sviluppatore Google (25 USD una tantum), una chiave di caricamento privata (da conservare nei Secrets di GitHub, mai nel repository), la build `bundleRelease` (file AAB), l'informativa sulla privacy e la scheda «Sicurezza dei dati» (l'app usa la posizione).
+- **Play Store**: serve un account sviluppatore Google (25 USD una tantum), una chiave di caricamento privata (da conservare nei Secrets di GitHub, mai nel repository), la build `bundleRelease` (file AAB), l'informativa sulla privacy e la scheda «Sicurezza dei dati» (l'app usa la posizione solo se l'utente tocca «Vicino a me»).
 
 ## Privacy
 
@@ -60,7 +60,5 @@ L'orto di ogni utente è salvato **sul dispositivo** (Capacitor Preferences, con
 
 - Pubblicazione sul Play Store (vedi «App Android»).
 - "Aperto ora" calcolato dagli orari OpenStreetMap.
-- Utilizzo offline dei file dell'app (i font sono già inclusi).
-- Cache delle ultime ricerche sulla mappa.
 - Più verdure e varietà, filtri per zona climatica.
 - Pubblicità (AdMob) e titolo dello store con parole chiave, per esempio «Orto Mio: Verdure di Stagione».

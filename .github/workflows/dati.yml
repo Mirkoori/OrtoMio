@@ -66,6 +66,7 @@ jobs:
           git add public/data
           if git diff --cached --quiet; then echo "Nessuna novità"; exit 0; fi
           git commit -m "Aggiorna archivio luoghi $(date +%F)"
+          git pull --rebase
           git push
           gh workflow run pages.yml
           gh workflow run android.yml

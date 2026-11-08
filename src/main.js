@@ -6,7 +6,7 @@ import "./style.css";
 import { Preferences } from "@capacitor/preferences";
 import { art } from "./art.js";
 import { MESI, MES3, MES3L, LET, V, BY, CATS } from "./data.js";
-import { mapApi, TYPES, TLAB } from "./map.js";
+import { guida, TYPES, TLAB } from "./guida.js";
 
 var NOW=new Date(), NOW_M=NOW.getMonth()+1;
 function $(s,r){return (r||document).querySelector(s)}
@@ -123,34 +123,54 @@ function renderOrto(){
     '<li class="empty" style="grid-column:auto"><b>Il tuo orto è vuoto</b>Apri una verdura dalla sezione Stagione e tocca «Aggiungi al mio orto».</li>';
 }
 
-/* ---------- MAPPA ---------- */
+/* ---------- GUIDA ---------- */
 function fmtKm(km){return km<1?Math.round(km*1000)+" m":km.toFixed(1).replace(".",",")+" km"}
 function safeUrl(u){u=String(u||"").trim();if(!u)return null;if(/^[a-z][a-z0-9+.-]*:/i.test(u)&&!/^https?:/i.test(u))return null;if(!/^https?:\/\//i.test(u))u="https://"+u;return /^https?:\/\/[^\s"'<>]+$/i.test(u)?u:null}
 function safePhone(p){p=String(p||"").split(";")[0].trim();return /^[+\d][\d\s().\/-]{4,}$/.test(p)?p.replace(/[^\d+]/g,""):null}
 function placeCard(p,s){
-  var sel=p.id===s.sel,web=safeUrl(p.website),tel=safePhone(p.phone);
+  var web=safeUrl(p.website),tel=safePhone(p.phone);
   var dir="https://www.google.com/maps/dir/?api=1&destination="+p.lat+","+p.lng;
   var links='<a class="lnk" href="'+dir+'" target="_blank" rel="noopener">Indicazioni</a>'+
     (web?'<a class="lnk" href="'+esc(web)+'" target="_blank" rel="noopener">Sito</a>':"")+
     (tel?'<a class="lnk" href="tel:'+tel+'">Chiama</a>':"");
-  return '<li class="prod'+(sel?" sel":"")+'" style="--tc:var(--t-'+p.type+')">'+
-    '<button class="prod-main" data-act="prod" data-id="'+esc(p.id)+'" aria-pressed="'+sel+'">'+
-    '<span class="prod-h"><span><span class="h4">'+esc(p.name)+'</span><span class="tpill">'+TLAB[p.type]+'</span></span>'+
-    '<span class="dist"><b>'+fmtKm(p.km)+'</b>'+s.originLabel+'</span></span>'+
-    (p.addr?'<span class="hrs">'+esc(p.addr)+'</span>':"")+
-    '<span class="hrs">'+(p.hours?esc(p.hours):"Orari non indicati")+'</span></button>'+
+  var where=[p.city,p.sigla?"("+p.sigla+")":""].filter(Boolean).join(" ");
+  return '<li class="prod" style="--tc:var(--t-'+p.type+')"><div class="prod-main">'+
+    '<span class="prod-h"><span><span class="h4">'+esc(s.displayName(p))+'</span><span class="tpill">'+TLAB[p.type]+'</span></span>'+
+    (p.km!=null?'<span class="dist"><b>'+fmtKm(p.km)+'</b>da te</span>':"")+'</span>'+
+    (where?'<span class="hrs"><b>'+esc(where)+'</b></span>':"")+
+    (p.addr&&p.addr!==p.city?'<span class="hrs">'+esc(p.addr)+'</span>':"")+
+    '<span class="hrs">'+(p.hours?esc(p.hours):"Orari non indicati")+'</span></div>'+
     '<div class="prod-links">'+links+'</div></li>';
 }
-function renderMappa(){
-  var s=mapApi.getState();
-  $("#mapStatus").textContent=s.status;
-  $("#mchips").innerHTML=TYPES.map(function(t){
-    var n=t.k==="all"?s.total:(s.counts[t.k]||0);
-    return '<button class="chip" data-act="ptype" data-k="'+t.k+'" aria-pressed="'+(s.type===t.k)+'">'+(t.k!=="all"?'<span class="dot" style="background:var(--t-'+t.k+')"></span>':"")+t.l+' · '+n+'</button>';
+function opts(list,cur,all,keyOf,labOf){
+  return '<option value="">'+all+'</option>'+list.map(function(o){var k=keyOf(o);return '<option value="'+esc(k)+'"'+(k===cur?" selected":"")+'>'+esc(labOf(o))+'</option>'}).join("");
+}
+function renderGuida(){
+  var s=guida.getState(),f=s.f;
+  var st;
+  if(s.loadError)st="Non riesco a caricare l’elenco dei luoghi. Riavvia l’app e riprova.";
+  else if(!s.loaded)st="Carico l’elenco dei luoghi…";
+  else if(!s.total)st="L’elenco dei luoghi non è ancora stato creato. Riprova dopo il prossimo aggiornamento.";
+  else st="<b>"+s.total.toLocaleString("it-IT")+" luoghi</b> in tutta Italia: aziende agricole, mercati e fruttivendoli."+(s.date?" Dati OpenStreetMap del "+s.date+".":"");
+  if(s.nearMsg)st=s.nearMsg;
+  $("#gStatus").innerHTML=st;
+  $("#fReg").innerHTML=opts(s.regOpts,f.reg,"Tutta Italia",function(o){return o},function(o){return o});
+  $("#fProv").innerHTML=opts(s.provOpts,f.prov,"Tutte le province",function(o){return o},function(o){return o});
+  $("#fCom").innerHTML=opts(s.comOpts,f.com,"Tutte le città",function(o){return o.key},function(o){return o.name+" · "+o.n});
+  $("#fProv").disabled=!s.provOpts.length;$("#fCom").disabled=!s.comOpts.length;
+  if($("#gq").value!==f.q)$("#gq").value=f.q;
+  var tot=s.counts.farm+s.counts.contadino+s.counts.frutt;
+  $("#gchips").innerHTML=TYPES.map(function(t){
+    var n=t.k==="all"?tot:(s.counts[t.k]||0);
+    return '<button class="chip" data-act="ptype" data-k="'+t.k+'" aria-pressed="'+(f.type===t.k)+'">'+(t.k!=="all"?'<span class="dot" style="background:var(--t-'+t.k+')"></span>':"")+t.l+' · '+n+'</button>';
   }).join("");
-  $("#searchhere").hidden=!(s.moved&&!s.busy);
-  $("#prods").innerHTML=s.list.length?s.list.map(function(p){return placeCard(p,s)}).join(""):
-    (s.busy?"":'<li class="empty" style="grid-column:auto"><b>Nessuna attività in elenco</b>Prova un altro filtro oppure sposta la mappa e cerca in un’altra zona.</li>');
+  var html;
+  if(!s.loaded)html="";
+  else if(!s.active)html='<li class="empty" style="grid-column:auto"><b>Scegli dove cercare</b>Seleziona una regione, una provincia o una città, scrivi un nome oppure tocca «Vicino a me».</li>';
+  else if(!s.list.length)html='<li class="empty" style="grid-column:auto"><b>Nessun risultato</b>In questa zona non risultano luoghi di questo tipo. Prova un altro filtro o cerca in una città vicina: l’elenco si basa su quanto è mappato in OpenStreetMap.</li>';
+  else html='<li class="count" style="margin:2px 2px 0;list-style:none">'+s.found.toLocaleString("it-IT")+(s.found===1?" luogo":" luoghi")+(s.near?" · dal più vicino":"")+'</li>'+s.list.map(function(p){return placeCard(p,s)}).join("");
+  $("#prods").innerHTML=html;
+  var more=$("#gmore");more.hidden=!s.more;if(s.more)more.textContent="Mostra altri ("+s.more.toLocaleString("it-IT")+")";
 }
 
 /* ---------- DETAIL SHEET ---------- */
@@ -198,15 +218,15 @@ function closeSheet(){
 }
 
 /* ---------- routing ---------- */
-var VIEWS=["stagione","orto","mappa"];
-function currentView(){var h=location.hash.slice(1);return VIEWS.indexOf(h)<0?"stagione":h}
+var VIEWS=["stagione","orto","guida"];
+function currentView(){var h=location.hash.slice(1);if(h==="mappa")h="guida";return VIEWS.indexOf(h)<0?"stagione":h}
 function route(){
   var h=currentView();
   VIEWS.forEach(function(k){$("#v-"+k).hidden=k!==h});
   document.querySelectorAll(".tab").forEach(function(a){if(a.dataset.tab===h)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
   if(h==="stagione")renderStagione();
   if(h==="orto")renderOrto();
-  if(h==="mappa"){mapApi.mount($("#map"),renderMappa);renderMappa()}
+  if(h==="guida"){guida.mount(renderGuida);renderGuida()}
   window.scrollTo(0,0);
 }
 
@@ -231,11 +251,11 @@ document.addEventListener("click",function(e){
     t.setAttribute("aria-pressed",String(!has));
     t.innerHTML=!has?IC.check+"Nel mio orto":IC.plus+"Aggiungi all’orto";
   }
-  else if(a==="find"){closeSheet();if(location.hash==="#mappa")window.scrollTo(0,0);else location.hash="#mappa"}
-  else if(a==="ptype"){mapApi.setType(t.dataset.k)}
-  else if(a==="prod"){mapApi.select(id,true);$("#mapwrap").scrollIntoView({block:"start"})}
-  else if(a==="locate"){mapApi.locate()}
-  else if(a==="searchhere"){mapApi.searchHere()}
+  else if(a==="find"){closeSheet();if(location.hash==="#guida")window.scrollTo(0,0);else location.hash="#guida"}
+  else if(a==="ptype"){guida.setType(t.dataset.k)}
+  else if(a==="gnear"){guida.mount(renderGuida);guida.nearMe()}
+  else if(a==="greset"){guida.reset()}
+  else if(a==="gmore"){guida.more()}
 });
 document.addEventListener("keydown",function(e){
   if(e.key==="Escape"&&state.open){closeSheet()}
@@ -244,3 +264,11 @@ $("#q").addEventListener("input",function(e){state.q=e.target.value;renderGrid()
 window.addEventListener("hashchange",route);
 
 loadGarden().then(route);
+
+document.addEventListener("change",function(e){
+  var id=e.target.id;
+  if(id==="fReg")guida.setReg(e.target.value);
+  else if(id==="fProv")guida.setProv(e.target.value);
+  else if(id==="fCom")guida.setCom(e.target.value);
+});
+document.addEventListener("input",function(e){if(e.target.id==="gq")guida.setQuery(e.target.value)});

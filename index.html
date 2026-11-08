@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#17392A">
-  <meta name="description" content="Orto Mio: verdure di stagione, calendario di semina, schede delle verdure e mappa di fruttivendoli, aziende agricole e mercati vicino a te.">
+  <meta name="description" content="Orto Mio: verdure di stagione, calendario di semina, schede delle verdure e guida a fruttivendoli, aziende agricole e mercati di tutta Italia.">
   <title>Orto Mio: Verdure di Stagione</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 </head>
@@ -51,18 +51,27 @@
       <ul class="plots" id="plots"></ul>
     </section>
 
-    <!-- MAPPA -->
-    <section id="v-mappa" class="view" aria-label="Mappa dei produttori" hidden>
+    <!-- GUIDA -->
+    <section id="v-guida" class="view" aria-label="Guida ai produttori" hidden>
       <div class="vh"><h2>Dove comprare</h2></div>
-      <p class="mapnote" id="mapStatus" role="status" aria-live="polite"></p>
-      <div class="chips" id="mchips" role="group" aria-label="Tipo di attività" style="padding-top:0"></div>
-      <div class="mapwrap" id="mapwrap">
-        <div id="map"></div>
-        <button class="maptool locate" data-act="locate">Vicino a me</button>
-        <button class="maptool searchhere" id="searchhere" data-act="searchhere" hidden>Cerca in quest'area</button>
+      <p class="mapnote" id="gStatus" role="status" aria-live="polite"></p>
+      <div class="filters">
+        <label class="sel"><span>Regione</span><select id="fReg"></select></label>
+        <label class="sel"><span>Provincia</span><select id="fProv"></select></label>
+        <label class="sel"><span>Città</span><select id="fCom"></select></label>
+      </div>
+      <label class="search">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+        <input id="gq" type="search" placeholder="Cerca per nome o città" autocomplete="off" aria-label="Cerca per nome o città">
+      </label>
+      <div class="chips" id="gchips" role="group" aria-label="Tipo di attività"></div>
+      <div class="gbar">
+        <button class="lnk" data-act="gnear">Vicino a me</button>
+        <button class="lnk" data-act="greset">Azzera filtri</button>
       </div>
       <ul class="prods" id="prods"></ul>
-      <p class="foot">Mappa e attività da OpenStreetMap (© contributori OpenStreetMap, licenza ODbL). Se manca un'attività o un orario è sbagliato, puoi correggerlo su openstreetmap.org e comparirà alla prossima ricerca.</p>
+      <button class="btn more" id="gmore" data-act="gmore" hidden></button>
+      <p class="foot">Elenco tratto da OpenStreetMap (© contributori OpenStreetMap, licenza ODbL) e aggiornato ogni mese. Se manca un'attività o un orario è sbagliato, puoi correggerlo su openstreetmap.org e arriverà con l'aggiornamento successivo.</p>
     </section>
   </main>
 </div>
@@ -71,7 +80,7 @@
   <div class="tabs">
     <a class="tab" href="#stagione" data-tab="stagione"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19C5 10 10 5 19 5c0 9-5 14-14 14Z"/><path d="M5 19 14 10"/></svg>Stagione</a>
     <a class="tab" href="#orto" data-tab="orto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21V11"/><path d="M12 11C12 7 9 5 5 5c0 4 3 6 7 6Z"/><path d="M12 13c0-3 2-5 6-5 0 3-2 5-6 5Z"/><path d="M6 21h12"/></svg>Il mio orto</a>
-    <a class="tab" href="#mappa" data-tab="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>Mappa</a>
+    <a class="tab" href="#guida" data-tab="guida"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5Z"/><path d="M12 6.5V19.5"/></svg>Guida</a>
   </div>
 </nav>
 
