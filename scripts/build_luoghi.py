@@ -85,7 +85,15 @@ def region_of(pt):
 
 def province_of(pt):
     p = find(prov_idx, pt)
-    if not p: return -1
+    if not p:
+        # Regioni senza livello province in OSM (es. Valle d'Aosta): la regione fa da provincia
+        r = find(reg_idx, pt)
+        if not r: return -1
+        k = (r["name"], "AO" if r["name"].startswith("Valle d") else "")
+        if k not in prov_pos:
+            prov_pos[k] = len(prov_list)
+            prov_list.append([r["name"], k[1], region_of(pt)])
+        return prov_pos[k]
     k = (p["name"], p["sigla"])
     if k not in prov_pos:
         prov_pos[k] = len(prov_list)
@@ -117,7 +125,12 @@ for feat in lines(src):
     city = tags.get("addr:city") or tags.get("addr:suburb") or tags.get("addr:place") or ""
     addr = ", ".join(x for x in [street, city] if x)
     ci = comune_of(Point(c[1], c[0]))
-    if ci < 0: nocom += 1
+    if ci >= 0:
+        pi = com_list[ci][1]
+        if pi < 0 or prov_list[pi][2] < 0:   # fuori dall'Italia (es. distretti svizzeri)
+            continue
+    else:
+        nocom += 1
     rows.append([oid, t, round(c[0], 5), round(c[1], 5), clean(tags.get("name")), clean(addr),
                  clean(tags.get("opening_hours")),
                  site(tags.get("website") or tags.get("contact:website")),
