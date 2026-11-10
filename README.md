@@ -43,10 +43,10 @@ L'app è impacchettata con [Capacitor](https://capacitorjs.com). Il progetto And
 
 - **APK di prova**: a ogni modifica su `main` GitHub compila l'app e la pubblica nella pagina **Releases**, voce «Ultima build». Dal telefono scarica `OrtoMio.apk` e aprilo (Android chiede il permesso di installare da Chrome).
 - **Aggiornamenti senza perdere i dati**: gli APK di prova sono firmati con una chiave fissa (`android/app/debug.keystore`, password pubblica). Va bene per le prove, **non** per lo store.
-- **Identificativo dell'app**: `it.devori.ortomio` (in `capacitor.config.json` e `android/app/build.gradle`). Cambialo prima della prima pubblicazione: dopo non si può più cambiare.
+- **Identificativo dell'app**: `it.devori.ortomio` (in `capacitor.config.json` e `android/app/build.gradle`). Dopo la prima pubblicazione non si può più cambiare.
 - **Su computer**: `npm run build`, `npx cap sync android`, `npx cap open android` (serve Android Studio).
 - **Icone**: sorgenti in `assets/`. Dopo averle modificate: `npx capacitor-assets generate --android`.
-- **Play Store**: serve un account sviluppatore Google (25 USD una tantum), una chiave di caricamento privata (da conservare nei Secrets di GitHub, mai nel repository), la build `bundleRelease` (file AAB), l'informativa sulla privacy e la scheda «Sicurezza dei dati» (l'app usa la posizione solo se l'utente tocca «Vicino a me»).
+- **Play Store**: tutto il materiale è in `store/` (guida passo passo `store/GUIDA-PUBBLICAZIONE.md`, testi e risposte ai moduli `store/scheda-play-store.md`, grafica `store/grafica/`). L'AAB firmato si crea dal workflow `Build di pubblicazione` con i Secrets `UPLOAD_KEYSTORE_B64` e `UPLOAD_KEYSTORE_PASSWORD` (la chiave privata non va mai nel repository).
 
 ## Privacy
 
@@ -58,7 +58,6 @@ L'orto di ogni utente è salvato **sul dispositivo** (Capacitor Preferences, con
 
 ## Da fare
 
-- Pubblicazione sul Play Store (vedi «App Android»).
 - "Aperto ora" calcolato dagli orari OpenStreetMap.
 - Più verdure e varietà, filtri per zona climatica.
 - Pubblicità (AdMob) e titolo dello store con parole chiave, per esempio «Orto Mio: Verdure di Stagione».
