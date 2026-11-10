@@ -30,7 +30,7 @@ async function loadGarden(){
   try{raw=(await Preferences.get({key:STORE_KEY})).value}catch(e){}
   if(!raw){try{raw=localStorage.getItem(STORE_KEY)}catch(e){}}
   var a=raw?parseGarden(raw):null;
-  garden=a||[{id:"aglio",d:Date.now()-14*DAY,ex:true},{id:"fave",d:Date.now()-9*DAY,ex:true},{id:"spinaci",d:Date.now()-21*DAY,ex:true}];
+  garden=a||[];
 }
 function saveGarden(){
   var s=JSON.stringify(garden);
@@ -105,7 +105,7 @@ var LANES=[
 function plotRow(g){
   var v=BY[g.id],el=Math.max(0,Math.floor((Date.now()-g.d)/DAY)),avg=(v.d[0]+v.d[1])/2,pct=Math.min(100,Math.round(el/avg*100)),ready=el>=avg;
   return '<li class="plot" style="--c:'+v.bg+'"><button class="plot-art" data-act="open" data-id="'+v.id+'" aria-label="Apri la scheda di '+v.n+'">'+art(v)+'</button>'+
-   '<div class="plot-b"><div class="plot-t"><b>'+v.n+'</b>'+(g.ex?'<span class="ex">esempio</span>':'')+'</div>'+
+   '<div class="plot-b"><div class="plot-t"><b>'+v.n+'</b>'+'</div>'+
    '<div class="plot-s">'+(el===0?"Messa a dimora oggi":"In orto da "+el+(el===1?" giorno":" giorni"))+" · "+(ready?"pronta da raccogliere":"pronta tra ~"+Math.round(avg-el)+" gg")+'</div>'+
    '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+pct+'" aria-label="Avanzamento verso il raccolto"><i style="width:'+pct+'%"></i></div></div>'+
    '<button class="x" data-act="rm" data-id="'+v.id+'" aria-label="Togli '+v.n+' dal mio orto">'+IC.x+'</button></li>';

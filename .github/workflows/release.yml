@@ -51,7 +51,13 @@ jobs:
         run: |
           AAB=android/app/build/outputs/bundle/release/app-release.aab
           ls -l "$AAB"
-          if jarsigner -verify "$AAB" >/dev/null 2>&1; then echo "AAB firmato"; keytool -printcert -jarfile "$AAB" | grep -i "SHA256\|Owner"; else echo "::warning::AAB non firmato"; fi
+          OUT=$(jarsigner -verify "$AAB" 2>&1 || true)
+          if echo "$OUT" | grep -qi "jar verified"; then
+            echo "AAB firmato"
+            keytool -printcert -jarfile "$AAB" 2>&1 | grep -i "Owner\|SHA256" || true
+          else
+            echo "::warning::AAB NON firmato: aggiungi i Secrets e rilancia prima di caricarlo sul Play Store"
+          fi
           cp "$AAB" OrtoMio-release.aab
 
       - uses: actions/upload-artifact@v4
