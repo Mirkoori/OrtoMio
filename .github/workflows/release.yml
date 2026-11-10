@@ -1,0 +1,61 @@
+name: Build di pubblicazione (AAB per il Play Store)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+
+      - name: Prepara la chiave di caricamento
+        env:
+          KS_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+          KS_PW: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PW" ]; then
+            echo "::warning::Secrets UPLOAD_KEYSTORE_B64 / UPLOAD_KEYSTORE_PASSWORD mancanti: l'AAB sarà NON firmato e non caricabile sul Play Store."
+            exit 0
+          fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/upload.keystore"
+          echo "UPLOAD_KEYSTORE_FILE=$RUNNER_TEMP/upload.keystore" >> "$GITHUB_ENV"
+          echo "UPLOAD_KEYSTORE_PASSWORD=$KS_PW" >> "$GITHUB_ENV"
+
+      - name: Compila l'AAB
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          # il download di Gradle da GitHub può dare errori temporanei (504): fino a 3 tentativi
+          for i in 1 2 3; do ./gradlew bundleRelease --no-daemon -Pvc=${{ github.run_number }} -Pvn=1.0.${{ github.run_number }} && exit 0; echo "Tentativo $i fallito"; sleep 20; done
+          exit 1
+
+      - name: Controlla la firma
+        run: |
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          ls -l "$AAB"
+          if jarsigner -verify "$AAB" >/dev/null 2>&1; then echo "AAB firmato"; keytool -printcert -jarfile "$AAB" | grep -i "SHA256\|Owner"; else echo "::warning::AAB non firmato"; fi
+          cp "$AAB" OrtoMio-release.aab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OrtoMio-release-aab
+          path: OrtoMio-release.aab
+          retention-days: 30
