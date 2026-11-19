@@ -7,6 +7,7 @@ import { Preferences } from "@capacitor/preferences";
 import { art } from "./art.js";
 import { MESI, MES3, MES3L, LET, V, BY, CATS } from "./data.js";
 import { guida, TYPES, TLAB } from "./guida.js";
+import { startAds } from "./ads.js";
 
 var NOW=new Date(), NOW_M=NOW.getMonth()+1;
 function $(s,r){return (r||document).querySelector(s)}
@@ -263,7 +264,7 @@ document.addEventListener("keydown",function(e){
 $("#q").addEventListener("input",function(e){state.q=e.target.value;renderGrid()});
 window.addEventListener("hashchange",route);
 
-loadGarden().then(route);
+loadGarden().then(route).then(startAds);
 
 document.addEventListener("change",function(e){
   var id=e.target.id;

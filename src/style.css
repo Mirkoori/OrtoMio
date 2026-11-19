@@ -27,7 +27,7 @@
 html{-webkit-text-size-adjust:100%}
 body{font-family:var(--f-body);font-size:16px;line-height:1.45;background:var(--bg);color:var(--ink);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
-  padding-block:14px 130px;-webkit-tap-highlight-color:transparent}
+  padding-block:14px calc(130px + var(--ad-h,0px));-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;cursor:pointer}
 a{color:inherit}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
