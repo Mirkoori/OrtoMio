@@ -7,6 +7,7 @@ import { Preferences } from "@capacitor/preferences";
 import { art } from "./art.js";
 import { MESI, MES3, MES3L, LET, V, BY, CATS } from "./data.js";
 import { guida, TYPES, TLAB } from "./guida.js";
+import { initReminders, rescheduleReminders, remindersAvailable, reminderSettings, setReminder } from "./promemoria.js";
 
 var NOW=new Date(), NOW_M=NOW.getMonth()+1;
 function $(s,r){return (r||document).querySelector(s)}
@@ -36,6 +37,7 @@ function saveGarden(){
   var s=JSON.stringify(garden);
   try{Preferences.set({key:STORE_KEY,value:s}).catch(function(){})}catch(e){}
   try{localStorage.setItem(STORE_KEY,s)}catch(e){}
+  rescheduleReminders();
 }
 
 /* ---------- helpers ---------- */
@@ -119,8 +121,20 @@ function renderOrto(){
       (L.length?'<div class="minis">'+L.map(function(v){return '<button class="mini" data-act="open" data-id="'+v.id+'" style="--c:'+v.bg+'"><span class="mi">'+art(v)+'</span>'+v.n+'</button>'}).join("")+'</div>':'<span class="none">Niente in programma questo mese.</span>')+'</section>';
   }).join("");
   $("#plotCount").textContent=garden.length+(garden.length===1?" verdura":" verdure");
+  renderRemind();
   $("#plots").innerHTML=garden.length?garden.map(plotRow).join(""):
     '<li class="empty" style="grid-column:auto"><b>Il tuo orto è vuoto</b>Apri una verdura dalla sezione Stagione e tocca «Aggiungi al mio orto».</li>';
+}
+
+function renderRemind(){
+  var box=$("#remind");if(!box)return;
+  if(!remindersAvailable()||!garden.length){box.hidden=true;return}
+  var st=reminderSettings();
+  box.hidden=false;
+  box.innerHTML='<h3>Promemoria</h3>'+
+   '<label class="rm-row"><span><b>Annaffiatura e controllo</b><small>Ogni pochi giorni, da marzo a novembre</small></span><input type="checkbox" data-rm="w"'+(st.w?" checked":"")+'></label>'+
+   '<label class="rm-row"><span><b>Raccolta</b><small>Quando una verdura è pronta</small></span><input type="checkbox" data-rm="h"'+(st.h?" checked":"")+'></label>'+
+   '<p class="rm-note">Al massimo una notifica al giorno. Si fermano da sole se non apri l\'app per due settimane.</p>';
 }
 
 /* ---------- GUIDA ---------- */
@@ -263,10 +277,15 @@ document.addEventListener("keydown",function(e){
 $("#q").addEventListener("input",function(e){state.q=e.target.value;renderGrid()});
 window.addEventListener("hashchange",route);
 
-loadGarden().then(route);
+loadGarden().then(function(){initReminders(function(){return garden},BY);return route()});
 
 document.addEventListener("change",function(e){
   var id=e.target.id;
+  if(e.target.dataset&&e.target.dataset.rm){
+    var cb=e.target,k=cb.dataset.rm,on=cb.checked;
+    setReminder(k,on).then(function(ok){if(!ok){cb.checked=false;if(on)toast("Per i promemoria serve il permesso per le notifiche")}else toast(on?"Promemoria attivato":"Promemoria disattivato")});
+    return;
+  }
   if(id==="fReg")guida.setReg(e.target.value);
   else if(id==="fProv")guida.setProv(e.target.value);
   else if(id==="fCom")guida.setCom(e.target.value);
